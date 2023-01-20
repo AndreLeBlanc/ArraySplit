@@ -72,6 +72,8 @@ main =
         Assert.equal (groups [ 1 ] [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]) $ [ [ 1 ] ]
       test "indicies 1,5,12 xs 1..9" do
         Assert.equal (groups [ 1, 5, 12 ] [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]) $ [ [ 1 ], [ 2, 3, 4, 5, 6 ], [ 7, 8, 9 ] ]
+      test "indicies 1,5,12,1 xs 1..9" do
+        Assert.equal (groups [ 1, 5, 12, 1 ] [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]) $ [ [ 1 ], [ 2, 3, 4, 5, 6 ], [ 7, 8, 9 ] ]
 
     suite "splitAtElem" do
       test "quickcheck" do

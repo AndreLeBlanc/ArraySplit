@@ -23,7 +23,6 @@ group n l
   | otherwise = []
 
 groups :: forall a. Array Int -> Array a -> Array (Array a)
-groups [] _ = []
 groups _ [] = []
 groups indicies xs =
   do
