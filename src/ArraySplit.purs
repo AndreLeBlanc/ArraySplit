@@ -7,7 +7,6 @@ module ArraySplit
   , tails
   , splitAtElems
   , splitAtElem
-  , splitAtSubList
   , splitAtIndices
   ) where
 
@@ -46,7 +45,7 @@ group n l
   | n > 0 = [ (A.take n l) ] <> ((group n (A.drop n l)))
   | otherwise = []
 
--- | Splits an `Array` into subarrays of the sizes given by indicies array. 
+-- | Splits an `Array` into subarrays of the sizes given by indices `Array`. 
 -- | Elements that don't fit in the subarrays are excluded.
 -- |
 -- | ```purescript
@@ -56,22 +55,27 @@ group n l
 -- |
 groups :: forall a. Array Int -> Array a -> Array (Array a)
 groups _ [] = []
-groups indicies xs =
+groups indices xs =
   do
-    { head, tail } <- A.uncons indicies
+    { head, tail } <- A.uncons indices
     [ A.take head xs ] <> groups tail (A.drop head xs) # pure
     # fromMaybe []
 
+-- | 
+-- | A useful recursion pattern for processing an `Array` to produce a new `Array`, often used for "chopping" up the input `Array`.
+-- | chop is called with some function that will consume an initial prefix of the `Array` and produce a record containing the 
+-- | result of applying the function on the prefix, as well as the tail of the `Array`.
+-- |
 chop :: forall a b. (Array a -> { el :: b, as :: Array a }) -> Array a -> Array b
 chop _ [] = []
 chop f as =
   let
-    { as, el } = f as
+    { el, as } = f as
   in
     chop f as
       # A.cons el
 
--- | Divides up an input array into a set of subarrays, according to 'n' and 'm'
+-- | Divides up an input `Array` into a set of subarrays, according to 'n' and 'm'
 -- |  input specifications you provide. Each subarray will have 'n' items, and the
 -- |  start of each subarray will be offset by 'm' items from the previous one.
 -- | ```purescript
@@ -80,7 +84,7 @@ chop f as =
 -- | ```
 -- |  In the case where a source array's trailing elements do no fill an entire
 -- |  subarray, those trailing elements will be dropped.
---
+-- |
 -- | ```purescript
 -- | divvy 5 2 [1..10] == [[1,2,3,4,5],[3,4,5,6,7],[5,6,7,8,9]]
 -- | ```
@@ -90,7 +94,7 @@ divvy n m xs = A.filter (\ws -> (n == A.length ws)) choppedl
   where
   choppedl = chop (\x -> { el: A.take n x, as: A.drop m x }) xs
 
--- | Creates an Array containing all the tails of a given array.
+-- | Creates an Array containing all the tails of a given `Array`.
 -- |
 -- | ```purescript
 -- | tails [1,2,3,4,5,6] = [[6],[5,6],[4,5,6],[3,4,5,6],[2,3,4,5,6]]
@@ -107,32 +111,50 @@ tails xs = go (pure (A.drop 1 xs)) (A.drop 1 xs)
       [] -> acc
       rest -> go (A.cons rest acc) rest
 
-splitAtElems :: forall a. Ord a => Array a -> Array a -> Array (Array a)
+-- | Splits an `Array` into subarrays, split at instances of elements in the splitters `Array`.
+-- |
+-- | ```purescript
+-- | splitAtElems [1,2] [4,3,1,3,2,1,4,5,5] = [[4,3,1],[3,2],[1],[4,5,5]]
+-- | splitAtElems [1,2] [1,4,3,1,3,2,1,4,5,5] =[[1],[4,3,1],[3,2],[1],[4,5,5]]
+-- | splitAtElems [7] [1,4,3,1,3,2,1,4,5,5] = [[1,4,3,1,3,2,1,4,5,5]]
+-- | ```
+-- |
+splitAtElems :: forall a. Eq a => Array a -> Array a -> Array (Array a)
 splitAtElems splitters xs =
   let
-    subs = A.foldl
-      (\acc x -> if A.elem x splitters then { head: [ x ], tail: acc.tail <> [ acc.head ] } else acc { head = A.snoc acc.head x })
-      { head: [], tail: [] }
+    { h, t } = A.foldl
+      (\acc x -> if A.elem x splitters then { h: [], t: acc.t <> [ A.snoc acc.h x ] } else acc { h = A.snoc acc.h x })
+      { h: [], t: [] }
       xs
   in
-    subs.tail <> [ subs.head ]
+    A.snoc t h
 
-splitAtElem :: forall a. Ord a => a -> Array a -> Array (Array a)
+-- | Splits an `Array` into subarrays, split at instances of splitter. The same as splitAtElems [splitter] xs.
+-- |
+-- | ```purescript
+-- | splitAtElem  [4,3,1,3,2,1,4,5,5] = [[4,3,1],[3,2],[1],[4,5,5]]
+-- | splitAtElem  [1,4,3,1,3,2,1,4,5,5] =[[1],[4,3,1],[3,2],[1],[4,5,5]]
+-- | splitAtElem [1,4,3,1,3,2,1,4,5,5] = [[1,4,3,1,3,2,1,4,5,5]]
+-- | ```
+-- |
+splitAtElem :: forall a. Eq a => a -> Array a -> Array (Array a)
 splitAtElem splitter xs = splitAtElems [ splitter ] xs
 
-splitAtSubList :: forall a. Eq a => Array a -> Array a -> Array (Array a)
-splitAtSubList sub xs =
-  let
-    { h, t } = A.foldl (\acc x -> if A.elem x sub then { h: [], t: A.snoc acc.t acc.h } else acc { h = A.snoc acc.h x }) { h: [], t: [] } xs
-  in
-    A.cons h t
-
+-- | Splits an `Array` into subarrays. Splits at indices given in the argument splitter. 
+-- |
+-- | ```purescript
+-- | splitAtIndices  [3,5] [1,2,3,4,5,6,7,8] = [[1,2,3],[4,5],[6,7,8]]
+-- | splitAtIndices  [] [1,2,3,4,5,6,7,8]  = [[1,2,3,4,5,6,7,8]]
+-- | splitAtIndices  [4,7,10] [1,2,3,4,5,6,7,8] = [[1,2,3,4],[5,6,7],[8]]
+-- | ```
+-- |
 splitAtIndices :: forall a. Array Int -> Array a -> Array (Array a)
+splitAtIndices _ [] = []
 splitAtIndices [] xs = [ xs ]
-splitAtIndices indicies xs =
+splitAtIndices indices xs =
   do
-    { head, tail } <- A.uncons indicies
-    let newTail = A.foldl (\acc t -> A.cons (t - head) acc) [] tail
+    { head, tail } <- A.uncons indices
+    let newTail = A.foldl (\acc t -> A.snoc acc (t - head)) [] tail
     let { before, after } = A.splitAt head xs
     A.cons before (splitAtIndices newTail after) # pure
     # fromMaybe []

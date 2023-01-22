@@ -2,11 +2,11 @@ module Test.Main where
 
 import Prelude
 
-import ArraySplit (group, groups, permutations, splitAtElem, splitAtIndices, tails)
+import ArraySplit (group, groups, permutations, splitAtElems, splitAtIndices, tails)
 import Data.Array as A
 import Data.Set (Set, fromFoldable, size)
 import Effect (Effect)
-import Test.QuickCheck ((===))
+import Test.QuickCheck ((===), Result, (<?>))
 import Test.Unit (suite, test)
 import Test.Unit.Assert as Assert
 import Test.Unit.Main (runTest)
@@ -17,10 +17,28 @@ orderings 0 = 0
 orderings 1 = 1
 orderings n = n * orderings (n - 1)
 
+splitAtElemTester :: Array Int -> Array Int -> Array Int -> Result
+splitAtElemTester a b c =
+  let
+    filteredB = A.filter (\x -> not (A.elem x a)) b
+    filteredC = A.filter (\x -> not (A.elem x a)) c
+
+    splitMe :: Array Int
+    splitMe = A.foldl (\acc x -> acc <> (A.snoc filteredB x) <> (A.snoc filteredC x)) [] a
+
+    res :: Array (Array Int)
+    res = A.foldl (\acc x -> acc <> [ A.snoc filteredB x ] <> [ A.snoc filteredC x ]) [] a
+  in
+    splitAtElems a splitMe === A.snoc res []
+
 splitTwoIndices :: forall a. Int -> Int -> Array a -> Array (Array a)
 splitTwoIndices i j xs =
-  A.cons (A.take j xs # A.drop i) [ A.drop (max i j) xs ]
-    # A.cons (A.take i xs)
+  let
+    last = A.drop (i + j) xs
+    mid = (A.take (j - i) xs # A.drop i)
+    init = A.take i xs
+  in
+    A.foldl (\acc el -> if A.length el == 0 then acc else A.cons el acc) [] [last, mid, init]
 
 small :: Int -> Int
 small x | x > 0 = mod x 100
@@ -75,10 +93,6 @@ main =
       test "indicies 1,5,12,1 xs 1..9" do
         Assert.equal (groups [ 1, 5, 12, 1 ] [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]) $ [ [ 1 ], [ 2, 3, 4, 5, 6 ], [ 7, 8, 9 ] ]
 
-    suite "splitAtElem" do
-      test "quickcheck" do
-        quickCheck \(a :: Int) b c -> splitAtElem a (b <> [ a ] <> c) === [ b, [ a ] <> c ]
-
     suite "tails" do
       test "empty" do
         Assert.equal (tails ([] :: Array Int)) []
@@ -95,11 +109,15 @@ main =
               (tails xs2 # fromFoldable) ===
                 (fromFoldable $ map (\x -> A.reverse xs2 # A.take x # A.reverse) (A.range 1 (A.length xs + 1)))
 
+    suite "splitAtElems" do
+      test "quickcheck" do
+        quickCheck \a b c -> splitAtElemTester a b c
+
     suite "splitAtIndices" do
       test "quick multi concat" do
         quickCheck \index (xs :: Array Char) -> (splitAtIndices index xs # A.concat) === xs
       test "quick multi two indexes" do
-        quickCheck \i j (xs :: Array Char) -> (splitAtIndices [ small i, small j ] xs) === splitTwoIndices (small i) (small j) xs
+        quickCheck \i j (xs :: Array Char) -> ((splitAtIndices [ small i, small j ] xs) == splitTwoIndices (small i) (small j) xs) <?> (show (small i) <> " j: " <> show (small j) <> show " xs: " <> show xs <> "  " <> show (splitAtIndices [ small i, small j ] xs) <> "  " <> show (splitTwoIndices (small i) (small j) xs))
 
 permsDCODE :: Set (Array String)
 permsDCODE = fromFoldable
