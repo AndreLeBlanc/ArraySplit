@@ -34,11 +34,11 @@ splitAtElemTester a b c =
 splitTwoIndices :: forall a. Int -> Int -> Array a -> Array (Array a)
 splitTwoIndices i j xs =
   let
-    last = A.drop (i + j) xs
-    mid = (A.take (j - i) xs # A.drop i)
+    last = A.drop (max i j) xs
+    mid = A.take j xs # A.drop i
     init = A.take i xs
   in
-    A.foldl (\acc el -> if A.length el == 0 then acc else A.cons el acc) [] [last, mid, init]
+    A.foldl (\acc el -> if A.length el > 0 || A.length acc > 0 then A.cons el acc else acc) [] [ last, mid, init ]
 
 small :: Int -> Int
 small x | x > 0 = mod x 100
@@ -117,7 +117,14 @@ main =
       test "quick multi concat" do
         quickCheck \index (xs :: Array Char) -> (splitAtIndices index xs # A.concat) === xs
       test "quick multi two indexes" do
-        quickCheck \i j (xs :: Array Char) -> ((splitAtIndices [ small i, small j ] xs) == splitTwoIndices (small i) (small j) xs) <?> (show (small i) <> " j: " <> show (small j) <> show " xs: " <> show xs <> "  " <> show (splitAtIndices [ small i, small j ] xs) <> "  " <> show (splitTwoIndices (small i) (small j) xs))
+        quickCheck \i j (xs :: Array Char) -> ((splitAtIndices [ small i, small j ] xs) == splitTwoIndices (small i) (small j) xs)
+          <?>
+            ( "i: " <> show (small i) <> " j: " <> show (small j) <> " xs: " <> show xs
+                <> " res: "
+                <> show (splitAtIndices [ small i, small j ] xs)
+                <> " test oracle: "
+                <> show (splitTwoIndices (small i) (small j) xs)
+            )
 
 permsDCODE :: Set (Array String)
 permsDCODE = fromFoldable
